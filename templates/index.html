@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Forecast Dashboard</title>
+    <!-- Use Tailwind via CDN for quick, robust, modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #0f172a; color: white; margin: 0; padding: 0; overflow-x: hidden; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; text-shadow: 0 0 10px currentColor; } 50% { opacity: 0.8; text-shadow: 0 0 20px currentColor; } 100% { opacity: 1; text-shadow: 0 0 10px currentColor; } }
+        /* Animated Background Blob */
+        .blob { position: absolute; border-radius: 50%; filter: blur(100px); z-index: -1; opacity: 0.4; }
+        .blob-1 { background: #3b82f6; width: 400px; height: 400px; top: -100px; left: -100px; animation: float 10s infinite; }
+        .blob-2 { background: #8b5cf6; width: 300px; height: 300px; bottom: 100px; right: -50px; animation: float 14s infinite alternate; }
+        @keyframes float { 0% { transform: translateY(0px) scale(1); } 50% { transform: translateY(50px) scale(1.1); } 100% { transform: translateY(0px) scale(1); } }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 relative">
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="max-w-7xl mx-auto space-y-8 relative z-10">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center pb-6 border-b border-slate-700/50">
+        <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-300 drop-shadow-md">
+            <i class="fa-brands fa-bitcoin text-blue-400 mr-2"></i> Crypto Forecast (BTC)
+        </h1>
+        <div class="text-slate-400 mt-4 md:mt-0 px-4 py-2 bg-slate-800/50 rounded-full text-sm font-medium border border-slate-700 shadow-inner">
+            <i class="fa-solid fa-server mr-2 text-emerald-400"></i> PyTorch LSTM Engine Online
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Prediction Card -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="glass rounded-3xl p-8 shadow-2xl relative overflow-hidden group hover:border-slate-600 transition duration-300">
+                <div class="relative z-10">
+                    <h2 class="text-2xl font-semibold mb-8 flex items-center text-slate-100">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-3 text-yellow-400"></i> Next Day Prediction
+                    </h2>
+                    
+                    <button id="predictBtn" onclick="runPrediction()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-all duration-300 py-4 rounded-xl font-bold text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_30px_rgba(79,70,229,0.6)] mb-2 transform hover:-translate-y-1">
+                        Run Inference Model
+                    </button>
+                    
+                    <div id="loadingState" class="hidden text-center py-10">
+                        <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-400 mb-6 inline-block"></i>
+                        <p class="text-slate-300 font-medium">Extracting signals & computing tensors...</p>
+                    </div>
+                    
+                    <div id="resultState" class="hidden space-y-8 animate-[fade-in_0.5s_ease-out]">
+                        <div class="text-center bg-slate-800/60 rounded-2xl p-6 border border-slate-700/80 shadow-inner">
+                            <p class="text-sm text-slate-400 tracking-widest uppercase font-medium mb-2">Predicted Price</p>
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <span class="text-5xl font-extrabold bg-clip-text text-transparent drop-shadow-sm transition-all" id="predictedPriceColor">
+                                    $<span id="predictedPrice"></span>
+                                </span>
+                                <span id="trendBadge" class="px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mt-2"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4 px-2">
+                            <div class="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                                <p class="text-slate-400">Target Date</p>
+                                <p id="targetDate" class="text-lg font-medium tracking-wide"></p>
+                            </div>
+                            <div class="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                                <p class="text-slate-400">Last Close Price</p>
+                                <p class="text-lg font-medium">$<span id="currentPrice"></span></p>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <p class="text-slate-400">Projected Move</p>
+                                <p class="text-lg font-bold" id="movePercent"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 border-l-4 border-blue-500 hover:bg-slate-800/30 transition duration-300">
+                <h3 class="font-semibold mb-2 text-blue-100 flex items-center">
+                    <i class="fa-solid fa-microchip mr-2 text-blue-400"></i> Tech Stack Config
+                </h3>
+                <p class="text-sm text-slate-300 leading-relaxed font-light">
+                    The Deep Learning component runs a 2-layer <strong class="text-slate-100">LSTM PyTorch</strong> matrix, utilizing technical volatility metrics (MACD, RSI, BB) fed through a <strong class="text-slate-100">MinMaxScaler</strong> sliding window algorithm.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Right Column: Chart -->
+        <div class="lg:col-span-2 glass rounded-3xl p-2 md:p-8 shadow-2xl relative flex flex-col hover:border-slate-600 transition duration-300">
+            <div class="flex justify-between items-center mb-6 px-4 md:px-0">
+                <h2 class="text-xl font-semibold flex items-center">
+                    <i class="fa-solid fa-chart-line mr-3 text-emerald-400"></i> Market Activity (100 Days)
+                </h2>
+                <div class="text-xs text-slate-400 uppercase tracking-widest p-1 border border-slate-700 rounded-md">Live Data Config</div>
+            </div>
+            <div class="flex-grow w-full relative min-h-[400px]">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<script>
+    const rawDates = {{ dates | safe }};
+    const rawCloses = {{ closes | safe }};
+    
+    // Initialize Chart
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    
+    // Create gradient
+    let gradient = ctx.createLinearGradient(0, 0, 0, 450);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+    gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+    
+    Chart.defaults.font.family = "'Outfit', sans-serif";
+    Chart.defaults.color = '#94a3b8';
+
+    const priceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: rawDates,
+            datasets: [{
+                label: 'BTC-USD Close Price',
+                data: rawCloses,
+                borderColor: '#60a5fa', /* Lighter blue */
+                backgroundColor: gradient,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#fff',
+                fill: true,
+                tension: 0.3 /* Smooth curves */
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255,255,255,0.15)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return '$' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.03)', drawBorder: false },
+                    ticks: { maxTicksLimit: 8, font: {size: 11} }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+                    ticks: {
+                        callback: function(value) { return '$' + value.toLocaleString(); },
+                        font: {size: 11}
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+
+    async function runPrediction() {
+        document.getElementById('predictBtn').classList.add('hidden');
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('resultState').classList.add('hidden');
+        
+        try {
+            const response = await fetch('/predict');
+            if(!response.ok) throw new Error("API Connection Error");
+            const data = await response.json();
+            
+            if(data.error) {
+                alert(data.error);
+                throw new Error(data.error);
+            }
+            
+            document.getElementById('targetDate').textContent = data.predicted_date;
+            document.getElementById('predictedPrice').textContent = data.predicted_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('currentPrice').textContent = data.current_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('movePercent').textContent = data.diff_percent + "%";
+            
+            const badge = document.getElementById('trendBadge');
+            const priceColor = document.getElementById('predictedPriceColor');
+            
+            if(data.trend === 'UP') {
+                badge.className = "px-4 py-1.5 rounded-full text-sm font-bold mt-2 flex items-center justify-center bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 pulse";
+                badge.innerHTML = '<i class="fa-solid fa-arrow-trend-up mr-2"></i> BULLISH TREND';
+                priceColor.className = "text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]";
+                document.getElementById('movePercent').className = "text-lg font-bold text-emerald-400";
+            } else {
+                badge.className = "px-4 py-1.5 rounded-full text-sm font-bold mt-2 flex items-center justify-center bg-rose-500/20 text-rose-400 border border-rose-500/30 pulse";
+                badge.innerHTML = '<i class="fa-solid fa-arrow-trend-down mr-2"></i> BEARISH TREND';
+                priceColor.className = "text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 to-red-500 drop-shadow-[0_0_15px_rgba(244,63,94,0.3)]";
+                document.getElementById('movePercent').className = "text-lg font-bold text-rose-400";
+            }
+            
+            setTimeout(() => {
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('resultState').classList.remove('hidden');
+                
+                // Add Marker to Chart
+                priceChart.data.labels.push(data.predicted_date + " (Pred)");
+                priceChart.data.datasets[0].data.push(data.predicted_price);
+                
+                const ptRadius = new Array(priceChart.data.datasets[0].data.length - 1).fill(0);
+                ptRadius.push(8);
+                
+                const ptColors = new Array(priceChart.data.datasets[0].data.length - 1).fill('#60a5fa');
+                ptColors.push(data.trend === 'UP' ? '#10b981' : '#f43f5e');
+                
+                priceChart.data.datasets[0].pointRadius = ptRadius;
+                priceChart.data.datasets[0].pointBackgroundColor = ptColors;
+                priceChart.data.datasets[0].pointBorderColor = '#fff';
+                priceChart.data.datasets[0].pointBorderWidth = 3;
+                
+                priceChart.update();
+            }, 800); // Artificial delay to let the user "feel" the inference
+            
+        } catch (e) {
+            console.error(e);
+            document.getElementById('predictBtn').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+    }
+</script>
+</body>
+</html>
